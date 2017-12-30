@@ -12,6 +12,7 @@ hr_df = pd.read_csv('csv/hpg_reserve.csv')
 hsi_df = pd.read_csv('csv/hpg_store_info.csv')
 sir_df = pd.read_csv('csv/store_id_relation.csv')
 sample_df = pd.read_csv('csv/sample_submission.csv')
+di_df = pd.read_csv('csv/date_info.csv')
 
 # longitude-latitude cluster
 xh = hsi_df['longitude']
@@ -60,3 +61,19 @@ rrvf_df.drop(['latitude_x', 'latitude_y', 'longitude_x', 'longitude_y'], axis=1,
 
 ll_df = pd.DataFrame({'latitude': mean_latitude, 'longitude': mean_longitude})
 rrvf_df.join(ll_df)
+
+# counting continuous holiday duration
+record_arr = [['2016-01-01', 0]]
+record_posi = 0
+recording = True
+for index, row in di_df.iterrows():
+    if recording and row['holiday_flg'] is 1:
+        record_arr[record_posi][1] += 1
+    elif not recording and row['holiday_flg'] is 1:
+        record_posi += 1
+        record_arr.append([row['calendar_date'], 1])
+        recording = True
+    elif recording and row['holiday_flg'] is not 1:
+        recording = False
+    else:
+        pass
