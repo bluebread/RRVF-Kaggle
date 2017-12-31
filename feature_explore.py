@@ -14,6 +14,8 @@ sir_df = pd.read_csv('csv/store_id_relation.csv')
 sample_df = pd.read_csv('csv/sample_submission.csv')
 di_df = pd.read_csv('csv/date_info.csv')
 
+
+
 # longitude-latitude cluster
 xh = hsi_df['longitude']
 yh = hsi_df['latitude']
@@ -40,27 +42,7 @@ street_count = pd.concat([asi_df['street'], hsi_df['street']]).value_counts().si
 location_total = province_count + city_count + street_count # 289
 print('location_total:', location_total)
 
-# merge air_store_info & hpg_store_info dataset
-link_df = pd.merge(asi_df, sir_df, on='air_store_id', how='outer')
-rrvf_df = pd.merge(link_df, hsi_df, on='hpg_store_id', how='outer')
-rrvf_df = rrvf_df.fillna(0)
-rrvf_df.head()
 
-# process latitude & longitude overlapping
-count_latitude_x = (rrvf_df['latitude_x'] > 0) + 0
-count_latitude_y = (rrvf_df['latitude_y'] > 0) + 0
-count_latitude = count_latitude_x + count_latitude_y
-mean_latitude = (rrvf_df['latitude_x'] + rrvf_df['latitude_y']) / count_latitude
-
-count_longitude_x = (rrvf_df['longitude_x'] > 0) + 0
-count_longitude_y = (rrvf_df['longitude_y'] > 0) + 0
-count_longitude = count_longitude_x + count_longitude_y
-mean_longitude = (rrvf_df['longitude_x'] + rrvf_df['longitude_y']) / count_longitude
-
-rrvf_df.drop(['latitude_x', 'latitude_y', 'longitude_x', 'longitude_y'], axis=1, inplace=True)
-
-ll_df = pd.DataFrame({'latitude': mean_latitude, 'longitude': mean_longitude})
-rrvf_df.join(ll_df)
 
 # counting continuous holiday duration
 record_arr = [['2016-01-01', 0]]
