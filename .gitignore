@@ -3,3 +3,4 @@ zip
 .vscode
 .ipynb_checkpoints
 code
+__pycache__
