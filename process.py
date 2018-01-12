@@ -19,19 +19,13 @@ import json
 
 import pandas as pd
 import numpy as np
+from sklearn.cluster import KMeans
 
 print('IMPORT COMPLETE! START PROCESSING...\n')
 
 
 def store_process():
-    """各家商店的资讯进行整合。"""
-    store_df = _generate()
-    store_df.to_csv('store_info.csv', encoding='utf-8', index=False)
-    return store_df
-
-
-def _generate():
-    """合并 air 与 hpg 数据集，产生初步的商店信息。"""
+    """各家商店的资讯进行整合。合并 air 与 hpg 数据集，产生初步的商店信息。"""
     asi_df = pd.read_csv('csv/air_store_info.csv')
     hsi_df = pd.read_csv('csv/hpg_store_info.csv')
     sir_df = pd.read_csv('csv/store_id_relation.csv')
@@ -161,6 +155,15 @@ def _npdatetime64_convert_to_datetime_date(npdatetime64):
     seconds_since_epoch = (npdatetime64 - unix_epoch) / one_second
 
     return datetime.utcfromtimestamp(seconds_since_epoch).date()
+
+
+def clustering(store_df):
+    X = store_df[['latitude', 'longitude']].values
+    kmeans = KMeans(n_clusters=9, random_state=42)
+    y_pred = kmeans.fit_predict(X)
+    ll_cluster = pd.DataFrame(y_pred, columns=['ll_cluster'])
+
+    return store_df.join(ll_cluster)
 
 
 if __name__ == '__main__':
