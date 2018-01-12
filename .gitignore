@@ -3,3 +3,7 @@ zip
 .vscode
 .ipynb_checkpoints
 __pycache__
+ts_process.ipynb
+air_proc_res.csv
+hpg_proc_res.csv
+alpha
