@@ -7,14 +7,15 @@
     store_df 将另外输出成 store_info.csv。
     若只被单边数据集登录，则该商店 id 信息将补 0 。
 - reserve_process:
-    预定信息处理，并将数据集合并。
-    返回reserve_df，包含 id(air & hpg), visit_datetime,
-    total_reserve。
+    预定信息处理。
+    返回reserve_df，包含 id, visit_datetime,
+    visitors，并输出 csv 檔。
 - clustering:
     依据类型分组统计。
     返回genre_df、city_df、lati_long_df。
 """
-from datetime import timedelta, datetime
+from datetime import datetime
+import json
 
 import pandas as pd
 import numpy as np
@@ -76,36 +77,18 @@ def _lati_long_process(store_df):
 def _genre_porcess(store_df):
     """处理商店种类信息。因为 hpg 商店种类杂乱，主要以 air 为准。"""
 
-    # 依照两边数据集都有登录的商店为准，归纳 hpg 能转换成为的 air 商店种类。
-    genre = store_df[['air_genre_name', 'hpg_genre_name']]
-    union_genre = genre[genre['air_genre_name'] != 0][genre['hpg_genre_name'] != 0]
-    group_genre = union_genre.groupby([
-        'hpg_genre_name',
-        'air_genre_name'
-        ]).size()
-    genre_map = []
-    for hpg_genre in group_genre.index.levels[0]:
-        target_air_genre = group_genre[hpg_genre].argmax()
-        # 'Italian' 明显对应 air 中 'Italian/French'，所以个别处理。
-        if hpg_genre == 'Italian':
-            target_air_genre = 'Italian/French'
-        genre_map.append([hpg_genre, target_air_genre])
-    genre_map = np.array(genre_map)
-
     # 进行商店种类转换
     genre = []
+    genre_map = json.load(open('genre_dict.json'))
     for index, row in store_df.iterrows():
         air_genre = row['air_genre_name']
         hpg_genre = row['hpg_genre_name']
         if air_genre != 0:
-            genre.append(air_genre)
+            new_genre = genre_map['air'][air_genre]
+            genre.append(new_genre)
         elif air_genre == 0 and hpg_genre != 0:
-            target_posi = np.argwhere(genre_map == hpg_genre)
-            if target_posi.size != 0:
-                genre_name = genre_map[target_posi[0][0], 1]
-                genre.append(genre_name)
-            else:
-                genre.append(hpg_genre)
+            new_genre = genre_map['hpg'][hpg_genre]
+            genre.append(new_genre)
         else:
             pass
     genre_df = pd.DataFrame(genre, columns=['genre'])
@@ -136,6 +119,8 @@ def _area_name_process(store_df):
 
 def reserve_process():
     """
+    预订信息处理，删除 reserve_datetime 并整合单日预定人数。返回具
+    有 air 与 hpg 预订信息的 DataFrame，最后输出 csv 檔。
     """
     ar_df = pd.read_csv(
         'csv/air_reserve.csv',
@@ -143,10 +128,12 @@ def reserve_process():
     hr_df = pd.read_csv(
         'csv/hpg_reserve.csv',
         parse_dates=['visit_datetime', 'reserve_datetime'])
-    r_pro_dfs = []
+    r_pro_dfs = []  # 缓存 reserve_df, 作为最后输出
+    # 分别对 air 与 hpg 数据集进行处理
     for name, df in [('air', ar_df), ('hpg', hr_df)]:
         reserve_df = _r_df_process(name, df)
         csv_name = '{0}_proc_res.csv'.format(name)
+        # 输出成 csv 檔
         reserve_df.to_csv(csv_name, encoding='utf-8', index=False)
         r_pro_dfs.append(reserve_df)
 
@@ -154,40 +141,17 @@ def reserve_process():
 
 
 def _r_df_process(name, df):
+    """对具有预订信息的 DataFrame 进行处理。"""
     store_id_name = '{0}_store_id'.format(name)
-    df = (df.drop(['reserve_datetime'], axis=1)
-          .sort_values([store_id_name, 'visit_datetime']))
-    store_list = df[store_id_name].unique()
 
-    reserve_df = pd.DataFrame([], columns=['id', 'visit_date', 'visitors'])
-    for store_id in store_list:
-        print('{0} has been procceded!'.format(store_id))
-        sid_df = df[df[store_id_name] == store_id]
-        reserve_indi_df = _store_process(store_id, sid_df)
-        reserve_df = pd.concat([reserve_df, reserve_indi_df])
-    reserve_df.rename(columns={'id': store_id_name})
+    reserve_df = df.drop(['reserve_datetime'], axis=1)
+    visit_date_convert = reserve_df['visit_datetime'].apply(
+        _npdatetime64_convert_to_datetime_date)
+    reserve_df['visit_datetime'] = visit_date_convert
+    reserve_df = reserve_df.groupby(
+        [store_id_name, 'visit_datetime'], as_index=False).sum()
 
     return reserve_df
-
-
-def _store_process(store_id, sid_df):
-    date_list = sid_df['visit_datetime'].unique()
-    unique_date_list = _unique_date(date_list)
-    sid_df.set_index('visit_datetime', inplace=True)
-    
-    reserve_arr = []
-    for date in unique_date_list:
-        nxt = date + timedelta(days=1)
-        visit_num = sid_df['reserve_visitors'][date:nxt].sum()
-        if visit_num is not 0:
-            reserve_arr.append([date, visit_num])
-
-    reserve_indi_df = pd.DataFrame(
-        reserve_arr,
-        columns=['visit_date', 'visitors'])
-    reserve_indi_df['id'] = store_id
-
-    return reserve_indi_df
 
 
 def _npdatetime64_convert_to_datetime_date(npdatetime64):
@@ -195,15 +159,8 @@ def _npdatetime64_convert_to_datetime_date(npdatetime64):
     unix_epoch = np.datetime64(0, 's')
     one_second = np.timedelta64(1, 's')
     seconds_since_epoch = (npdatetime64 - unix_epoch) / one_second
+
     return datetime.utcfromtimestamp(seconds_since_epoch).date()
-
-
-def _unique_date(date_list):
-    unique_date_arr = []
-    for d in date_list:
-        convert_d = _npdatetime64_convert_to_datetime_date(d)
-        unique_date_arr.append(convert_d)
-    return pd.Series(unique_date_arr).unique()
 
 
 if __name__ == '__main__':
