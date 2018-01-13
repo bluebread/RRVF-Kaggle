@@ -10,9 +10,6 @@
     预定信息处理。
     返回reserve_df，包含 id, visit_datetime,
     visitors，并输出 csv 檔。
-- clustering:
-    依据类型分组统计。
-    返回genre_df、city_df、lati_long_df。
 """
 from datetime import datetime
 import json
@@ -31,13 +28,21 @@ def store_process():
     sir_df = pd.read_csv('csv/store_id_relation.csv')
 
     # 合并 air 与 hpg 数据集
-    link_df = pd.merge(asi_df, sir_df, on='air_store_id', how='outer')
-    store_df = pd.merge(link_df, hsi_df, on='hpg_store_id', how='outer')
+    #   在 hpg_reserve.csv 中, 实际上仅有 63 个 hpg_store_id 有匹配的 air_store_id 
+    # 与 store_id_relation.csv 登录的 150 个不符. 然而 air_store_info.csv 中所有被
+    # 登记在 store_id_relation.csv 中的 air_store_id 都有相对应 hpg_store_id, 也
+    # 就是说, 可能 air_store_id 所对应的 hpg_store_id 其实并不存在于 hsi_df 中, 所以
+    # 必须清除那些不相对应的行。
+    link_df = (pd.merge(hsi_df, sir_df, on='hpg_store_id', how='outer')
+                 .fillna(value={'air_store_id': 0})
+                 .dropna(axis=0, how='any'))
+    store_df = pd.merge(link_df, asi_df, on='air_store_id', how='outer')
     store_df = store_df.fillna(0)
 
     store_df = _lati_long_process(store_df)
     store_df = _genre_porcess(store_df)
     store_df = _area_name_process(store_df)
+    store_df = _clustering(store_df)
     return store_df
 
 
@@ -157,7 +162,8 @@ def _npdatetime64_convert_to_datetime_date(npdatetime64):
     return datetime.utcfromtimestamp(seconds_since_epoch).date()
 
 
-def clustering(store_df):
+def _clustering(store_df):
+    """根据经纬度进行聚类。"""
     X = store_df[['latitude', 'longitude']].values
     kmeans = KMeans(n_clusters=9, random_state=42)
     y_pred = kmeans.fit_predict(X)
