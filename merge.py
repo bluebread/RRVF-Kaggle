@@ -61,6 +61,9 @@ def _pre_cdr():
         value_name='ll_cluster_reserve_visitors')
     cdr_df['visit_datetime'] = cdr_df['visit_datetime'].apply(
         lambda string: datetime.strptime(string, '%Y-%m-%d').date())
+    cdr_df = cdr_df.fillna(method='ffill')
+    llc_res = cdr_df['ll_cluster_reserve_visitors']
+    cdr_df['ll_cluster_reserve_visitors'] = llc_res.astype('int64')
 
     return cdr_df
 
@@ -127,13 +130,9 @@ def _pre_train(store_df):
 
 
 def _merge_foreginer(dfs, foreginers):
-    # merge_list = [('hpg_store_id', hpr_df), ('air_store_id', apr_df),
-    #               ('big_area', bigAreaR_df)]
     ahdn_df = foreginers['genre']
     tr_dfs = []
-    # print(ahdn_df)
     for df in dfs:
-        # print(df.head())
         df = pd.merge(df, ahdn_df, on=['genre'], how='inner')
         for target, target_df in foreginers.items():
             if (target == 'genre'):
@@ -172,16 +171,16 @@ def _dec_hpg(hpg_df):
 
 
 def _dec_cover(cover_df):
-    cas_res_vis = cover_df['air_store_reserve_visitors']
-    chs_res_vis = cover_df['hpg_store_reserve_visitors']
-    cas_rev_mean = cas_res_vis.mean()
-    chs_rev_mean = chs_res_vis.mean()
+    cas_rev_mean = cover_df['air_store_reserve_visitors'].mean()
+    chs_rev_mean = cover_df['hpg_store_reserve_visitors'].mean()
     cover_df.fillna(
         value={
             'air_store_reserve_visitors': cas_rev_mean,
             'hpg_store_reserve_visitors': chs_rev_mean
         },
         inplace=True)
+    cas_res_vis = cover_df['air_store_reserve_visitors']
+    chs_res_vis = cover_df['hpg_store_reserve_visitors']
     cover_store_res = chs_res_vis + cas_res_vis
     cover_df = cover_df.join(
         pd.DataFrame(cover_store_res, columns=['store_reserve_visitors']))
@@ -199,7 +198,6 @@ def output_res_train(air_df, cover_df, hpg_df):
     # decorate train
     res_train_df = _get_dummies(res_train_df,
                                 ['genre', 'big_area', 'll_cluster'])
-    # print(type(res_train_df['visit_datetime'].iloc[0]))
     res_train_df['visit_datetime'] = res_train_df['visit_datetime'].apply(
         lambda d: (d - datetime(2016, 1, 1).date()).days
     )
@@ -222,15 +220,15 @@ if __name__ == '__main__':
     bigAreaR_df = _pre_bigAreaR()
     cdr_df = _pre_cdr()
 
-    print('pre-process common dataframe')
+    print('\npre-process common dataframe')
     # pre-process common dataframe
     apr_df = _pre_apr()
     hpr_df = _pre_hpr()
     store_df = _pre_store()
     dfs = _pre_train(store_df)
 
-    print('merge foreginer into common')
-    # merge foreginer into common
+    print('\nmerge foreginer into common')
+    # merge foreginers into common
     tr_dfs = _merge_foreginer(
         dfs, {
             'genre': ahdn_df,
@@ -241,15 +239,14 @@ if __name__ == '__main__':
         })
     air_df, cover_df, hpg_df = tr_dfs
 
-    print('decorate dfs')
+    print('\ndecorate dfs')
     # decorate dfs
     air_df = _dec_air(air_df)
     cover_df = _dec_cover(cover_df)
     hpg_df = _dec_hpg(hpg_df)
 
-    print('final merge')
+    print('\nfinal merge')
     # final merge
     res_train_df = output_res_train(air_df, cover_df, hpg_df)
-    # airres_train_df = output_airres_train(air_df, cover_df)
 
-    print('completed')
+    print('\ncompleted')
