@@ -18,7 +18,7 @@ import pandas as pd
 import numpy as np
 from sklearn.cluster import KMeans
 
-print('IMPORT COMPLETE! START PROCESSING...\n')
+print('PROCESS: IMPORT COMPLETE! START PROCESSING...\n')
 
 
 def store_process():
@@ -116,6 +116,16 @@ def _area_name_process(store_df):
     return store_df
 
 
+def _clustering(store_df):
+    """根据经纬度进行聚类。"""
+    X = store_df[['latitude', 'longitude']].values
+    kmeans = KMeans(n_clusters=9, random_state=42)
+    y_pred = kmeans.fit_predict(X)
+    ll_cluster = pd.DataFrame(y_pred, columns=['ll_cluster'])
+
+    return store_df.join(ll_cluster)
+
+
 def reserve_process():
     """
     预订信息处理，删除 reserve_datetime 并整合单日预定人数。返回具
@@ -160,16 +170,6 @@ def _npdatetime64_convert_to_datetime_date(npdatetime64):
     seconds_since_epoch = (npdatetime64 - unix_epoch) / one_second
 
     return datetime.utcfromtimestamp(seconds_since_epoch).date()
-
-
-def _clustering(store_df):
-    """根据经纬度进行聚类。"""
-    X = store_df[['latitude', 'longitude']].values
-    kmeans = KMeans(n_clusters=9, random_state=42)
-    y_pred = kmeans.fit_predict(X)
-    ll_cluster = pd.DataFrame(y_pred, columns=['ll_cluster'])
-
-    return store_df.join(ll_cluster)
 
 
 if __name__ == '__main__':

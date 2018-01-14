@@ -8,4 +8,5 @@ air_proc_res.csv
 hpg_proc_res.csv
 alpha
 data_merge.ipynb
-train.csv
+res_train.csv
+airres_train.csv
