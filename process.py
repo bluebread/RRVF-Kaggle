@@ -1,83 +1,179 @@
+"""
+数据集预处理
+- store_process:
+    将各家商店的信息进行整合。
+    返回store_df，包含 air_store_id, hpg_store_id,
+    latitude, longitude, genre, area_name。
+    store_df 将另外输出成 store_info.csv。
+    若只被单边数据集登录，则该商店 id 信息将补 0 。
+- reserve_process:
+    预定信息处理。
+    返回reserve_df，包含 id, visit_datetime,
+    visitors，并输出 csv 檔。
+"""
+from datetime import datetime
+import json
+
 import pandas as pd
 import numpy as np
+from sklearn.cluster import KMeans
 
-ar_df = pd.read_csv('csv/air_reserve.csv')
-asi_df = pd.read_csv('csv/air_store_info.csv')
-avd_df = pd.read_csv('csv/air_visit_data.csv')
-hr_df = pd.read_csv('csv/hpg_reserve.csv')
-hsi_df = pd.read_csv('csv/hpg_store_info.csv')
-sir_df = pd.read_csv('csv/store_id_relation.csv')
-sample_df = pd.read_csv('csv/sample_submission.csv')
-di_df = pd.read_csv('csv/date_info.csv')
+print('PROCESS: IMPORT COMPLETE! START PROCESSING...\n')
 
 
-# merge air_store_info & hpg_store_info dataset
-link_df = pd.merge(asi_df, sir_df, on='air_store_id', how='outer')
-rrvf_df = pd.merge(link_df, hsi_df, on='hpg_store_id', how='outer')
-rrvf_df = rrvf_df.fillna(0)
-rrvf_df.head()
+def store_process():
+    """各家商店的资讯进行整合。合并 air 与 hpg 数据集，产生初步的商店信息。"""
+    asi_df = pd.read_csv('csv/air_store_info.csv')
+    hsi_df = pd.read_csv('csv/hpg_store_info.csv')
+    sir_df = pd.read_csv('csv/store_id_relation.csv')
 
-# process latitude & longitude overlapping
-count_latitude_x = (rrvf_df['latitude_x'] > 0) + 0
-count_latitude_y = (rrvf_df['latitude_y'] > 0) + 0
-count_latitude = count_latitude_x + count_latitude_y
-mean_latitude = (rrvf_df['latitude_x'] + rrvf_df['latitude_y']) / count_latitude
+    # 合并 air 与 hpg 数据集
+    #   在 hpg_reserve.csv 中, 实际上仅有 63 个 hpg_store_id 有匹配的 air_store_id
+    # 与 store_id_relation.csv 登录的 150 个不符. 然而 air_store_info.csv 中所有被
+    # 登记在 store_id_relation.csv 中的 air_store_id 都有相对应 hpg_store_id, 也
+    # 就是说, 可能 air_store_id 所对应的 hpg_store_id 其实并不存在于 hsi_df 中, 所以
+    # 必须清除那些不相对应的行。
+    link_df = (pd.merge(hsi_df, sir_df, on='hpg_store_id', how='outer')
+                 .fillna(value={'air_store_id': 0})
+                 .dropna(axis=0, how='any'))
+    store_df = pd.merge(link_df, asi_df, on='air_store_id', how='outer')
+    store_df = store_df.fillna(0)
 
-count_longitude_x = (rrvf_df['longitude_x'] > 0) + 0
-count_longitude_y = (rrvf_df['longitude_y'] > 0) + 0
-count_longitude = count_longitude_x + count_longitude_y
-mean_longitude = (rrvf_df['longitude_x'] + rrvf_df['longitude_y']) / count_longitude
+    store_df = _lati_long_process(store_df)
+    store_df = _genre_porcess(store_df)
+    store_df = _area_name_process(store_df)
+    store_df = _clustering(store_df)
+    return store_df
 
-rrvf_df.drop(['latitude_x', 'latitude_y', 'longitude_x', 'longitude_y'], axis=1, inplace=True)
 
-ll_df = pd.DataFrame({'latitude': mean_latitude, 'longitude': mean_longitude})
-rrvf_df.join(ll_df)
+def _lati_long_process(store_df):
+    """处理经纬度 air 与 hpg 重叠的部份"""
+    count_latitude_x = (store_df['latitude_x'] > 0) + 0
+    count_latitude_y = (store_df['latitude_y'] > 0) + 0
+    count_latitude = count_latitude_x + count_latitude_y
+    total_latitude = store_df['latitude_x'] + store_df['latitude_y']
 
-# constrcut hpg-air genre map
-genre = rrvf_df[['air_genre_name', 'hpg_genre_name']]
-union_genre = genre[genre['air_genre_name'] != 0][genre['hpg_genre_name'] != 0]
-group_genre = union_genre.groupby(['hpg_genre_name','air_genre_name']).size()
-genre_map = []
-for hpg_genre in group_genre.index.levels[0]:
-    target_air_genre = group_genre[hpg_genre].argmax()
-    if hpg_genre == 'Italian':
-        target_air_genre = 'Italian/French'
-    genre_map.append([hpg_genre, target_air_genre])
-genre_map = np.array(genre_map)
+    count_longitude_x = (store_df['longitude_x'] > 0) + 0
+    count_longitude_y = (store_df['longitude_y'] > 0) + 0
+    count_longitude = count_longitude_x + count_longitude_y
+    total_longitude = store_df['longitude_x'] + store_df['longitude_y']
 
-# process genre
-genre = []
-for index, row in rrvf_df.iterrows():
-    air_genre = row['air_genre_name']
-    hpg_genre = row['hpg_genre_name']
-    if air_genre != 0:
-        genre.append(air_genre)
-    elif air_genre == 0 and hpg_genre != 0:
-        target_posi = np.argwhere(genre_map == hpg_genre)
-        if target_posi.size != 0:
-            genre_name = genre_map[target_posi[0][0], 1]
-            genre.append(genre_name)
+    store_df.drop(
+        ['latitude_x', 'latitude_y', 'longitude_x', 'longitude_y'],
+        axis=1,
+        inplace=True
+    )
+
+    ll_df = pd.DataFrame({
+        'latitude': total_latitude / count_latitude,
+        'longitude': total_longitude / count_longitude
+    })
+    store_df = pd.concat([store_df, ll_df], axis=1)
+
+    return store_df
+
+
+def _genre_porcess(store_df):
+    """处理商店种类信息。因为 hpg 商店种类杂乱，主要以 air 为准。"""
+
+    # 进行商店种类转换
+    genre = []
+    # genre 种类整合的映射表
+    genre_map = json.load(open('genre_dict.json'))
+    for index, row in store_df.iterrows():
+        air_genre = row['air_genre_name']
+        hpg_genre = row['hpg_genre_name']
+        if air_genre != 0:
+            new_genre = genre_map['air'][air_genre]
+            genre.append(new_genre)
+        elif air_genre == 0 and hpg_genre != 0:
+            new_genre = genre_map['hpg'][hpg_genre]
+            genre.append(new_genre)
         else:
-            genre.append(hpg_genre)
-    else:
-        pass
-genre_df = pd.DataFrame(genre, columns=['genre'])
-rrvf_df = rrvf_df.join(genre_df)
-rrvf_df.drop(['air_genre_name', 'hpg_genre_name'], axis=1, inplace=True)
+            pass
+    genre_df = pd.DataFrame(genre, columns=['genre'])
+    store_df = store_df.join(genre_df)
+    store_df.drop(['air_genre_name', 'hpg_genre_name'], axis=1, inplace=True)
 
-# process area_name
-area_name = []
-for index, row in rrvf_df.iterrows():
-    air_area_name = row['air_area_name']
-    hpg_area_name = row['hpg_area_name']
-    if air_area_name != 0:
-        area_name.append(air_area_name)
-    elif air_area_name == 0 and hpg_area_name != 0:
-        area_name.append(hpg_area_name)
-    else:
-        pass
-area_name_df = pd.DataFrame(area_name, columns=['area_name'])
-rrvf_df = rrvf_df.join(area_name_df)
-rrvf_df.drop(['air_area_name', 'hpg_area_name'], axis=1, inplace=True)
+    return store_df
 
-rrvf_df.to_csv('rrvf.csv', encoding='utf-8')
+
+def _area_name_process(store_df):
+    """处理商店地域信息。以 air 登录的区域优先。"""
+    area_name = []
+    for index, row in store_df.iterrows():
+        air_area_name = row['air_area_name']
+        hpg_area_name = row['hpg_area_name']
+        if air_area_name != 0:
+            area_name.append(air_area_name)
+        elif air_area_name == 0 and hpg_area_name != 0:
+            area_name.append(hpg_area_name)
+        else:
+            pass
+    area_name_df = pd.DataFrame(area_name, columns=['area_name'])
+    store_df = store_df.join(area_name_df)
+    store_df.drop(['air_area_name', 'hpg_area_name'], axis=1, inplace=True)
+
+    return store_df
+
+
+def _clustering(store_df):
+    """根据经纬度进行聚类。"""
+    X = store_df[['latitude', 'longitude']].values
+    kmeans = KMeans(n_clusters=9, random_state=42)
+    y_pred = kmeans.fit_predict(X)
+    ll_cluster = pd.DataFrame(y_pred, columns=['ll_cluster'])
+
+    return store_df.join(ll_cluster)
+
+
+def reserve_process():
+    """
+    预订信息处理，删除 reserve_datetime 并整合单日预定人数。返回具
+    有 air 与 hpg 预订信息的 DataFrame，最后输出 csv 檔。
+    """
+    ar_df = pd.read_csv(
+        'csv/air_reserve.csv',
+        parse_dates=['visit_datetime', 'reserve_datetime'])
+    hr_df = pd.read_csv(
+        'csv/hpg_reserve.csv',
+        parse_dates=['visit_datetime', 'reserve_datetime'])
+    r_pro_dfs = []  # 缓存 reserve_df, 作为最后输出
+    # 分别对 air 与 hpg 数据集进行处理
+    for name, df in [('air', ar_df), ('hpg', hr_df)]:
+        reserve_df = _r_df_process(name, df)
+        csv_name = '{0}_proc_res.csv'.format(name)
+        # 输出成 csv 檔
+        reserve_df.to_csv(csv_name, encoding='utf-8', index=False)
+        r_pro_dfs.append(reserve_df)
+
+    return r_pro_dfs
+
+
+def _r_df_process(name, df):
+    """对具有预订信息的 DataFrame 进行处理。"""
+    store_id_name = '{0}_store_id'.format(name)
+
+    reserve_df = df.drop(['reserve_datetime'], axis=1)
+    visit_date_convert = reserve_df['visit_datetime'].apply(
+        _npdatetime64_convert_to_datetime_date)
+    reserve_df['visit_datetime'] = visit_date_convert
+    reserve_df = reserve_df.groupby(
+        [store_id_name, 'visit_datetime'], as_index=False).sum()
+
+    return reserve_df
+
+
+def _npdatetime64_convert_to_datetime_date(npdatetime64):
+    """numpy.datetime64 转换成 datetime，只传回 date 部份"""
+    unix_epoch = np.datetime64(0, 's')
+    one_second = np.timedelta64(1, 's')
+    seconds_since_epoch = (npdatetime64 - unix_epoch) / one_second
+
+    return datetime.utcfromtimestamp(seconds_since_epoch).date()
+
+
+if __name__ == '__main__':
+    ar_pro_df, hr_pro_df = reserve_process()
+    print(ar_pro_df.head())
+    print(hr_pro_df.head())
