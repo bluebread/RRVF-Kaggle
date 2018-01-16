@@ -28,7 +28,7 @@ def store_process():
     sir_df = pd.read_csv('csv/store_id_relation.csv')
 
     # 合并 air 与 hpg 数据集
-    #   在 hpg_reserve.csv 中, 实际上仅有 63 个 hpg_store_id 有匹配的 air_store_id 
+    #   在 hpg_reserve.csv 中, 实际上仅有 63 个 hpg_store_id 有匹配的 air_store_id
     # 与 store_id_relation.csv 登录的 150 个不符. 然而 air_store_info.csv 中所有被
     # 登记在 store_id_relation.csv 中的 air_store_id 都有相对应 hpg_store_id, 也
     # 就是说, 可能 air_store_id 所对应的 hpg_store_id 其实并不存在于 hsi_df 中, 所以
@@ -78,6 +78,7 @@ def _genre_porcess(store_df):
 
     # 进行商店种类转换
     genre = []
+    # genre 种类整合的映射表
     genre_map = json.load(open('genre_dict.json'))
     for index, row in store_df.iterrows():
         air_genre = row['air_genre_name']

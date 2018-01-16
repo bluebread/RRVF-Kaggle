@@ -1,17 +1,18 @@
 """
-RES TRAIN
+训练模型
+- res_train:
+    由 air 的 Visitor 与 Reserve 信息进行训练，预测
+    hpg 的 Visitor 信息。
 """
 from datetime import datetime
 
 import pandas as pd
 from sklearn.svm import SVR
 
-print('RES_TRAIN: IMPORT COMPLETE! START TRAINING...\n')
+print('TRAIN: IMPORT COMPLETE! START TRAINING...\n')
 
 
-def res_train():
-    avd_df = _pro_res_y()
-    airrt_df, hpgrt_df = _pro_rtrain()
+def res_train(avd_df, airrt_df, hpgrt_df):
     X, y, test_X = _pro_res(airrt_df, avd_df, hpgrt_df)
 
     clf = SVR()
@@ -67,7 +68,11 @@ def _pro_res(avd_df, airrt_df, hpgrt_df):
 
 
 if __name__ == '__main__':
-    hpg_vis_pred = res_train()
+    # 训练前，读入数据并格式化
+    avd_df = _pro_res_y()
+    airrt_df, hpgrt_df = _pro_rtrain()
+
+    # 进行训练，将最终返回结果输出成文件
+    hpg_vis_pred = res_train(avd_df, airrt_df, hpgrt_df)
     hpg_vis_pred_df = pd.DataFrame(hpg_vis_pred, columns=['hpg_vis_pred'])
     hpg_vis_pred_df.to_csv('hpg_vis_pred.csv', index=True)
-    pass

@@ -1,5 +1,5 @@
 """
-THE MAIN ALGORITHM FRAME
+主要算法架构
 """
 from process import store_process
 

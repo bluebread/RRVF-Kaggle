@@ -1,5 +1,5 @@
 """
-MERGE
+数据集合并
 """
 from datetime import datetime
 
@@ -10,6 +10,7 @@ print('MERGE: IMPORT COMPLETE! START PROCESSING...\n')
 
 def _pre_ahdn():
     print('ahdn start!')
+    # 根据 Genre 进行预定信息整合的数据集
     ahdn_df = pd.read_csv('air+hpg_day_new.csv')
 
     ahdn_df.rename(columns={'time': 'visit_datetime'}, inplace=True)
@@ -26,6 +27,7 @@ def _pre_ahdn():
 
 def _pre_bigAreaR():
     print('bigAreaR start!')
+    # 根据 bigArea(大地域，日本省份) 进行预定信息整合的数据集
     bigAreaR_df = pd.read_csv('Big_area_date_rev.csv', encoding='gbk')
 
     bigAreaR_df = (bigAreaR_df.drop(['Unnamed: 0'], axis=1).rename(
@@ -51,6 +53,7 @@ def _pre_bigAreaR():
 
 def _pre_cdr():
     print('cdr start!')
+    # 根据经纬度聚群结果进行预定信息整合的数据集
     cdr_df = pd.read_csv('cluster_date_rev.csv')
 
     cdr_df.drop(['Unnamed: 0'], axis=1, inplace=True)
@@ -215,20 +218,20 @@ def _get_dummies(df, dummies_list):
 
 if __name__ == '__main__':
     print('pre-process foregin dataframe')
-    # pre-process foregin dataframe
+    # 将经过特征处理后外来的数据集处理成能够合并的格式
     ahdn_df = _pre_ahdn()
     bigAreaR_df = _pre_bigAreaR()
     cdr_df = _pre_cdr()
 
     print('\npre-process common dataframe')
-    # pre-process common dataframe
+    # 将经过格式化后通用的输入数据格式调整为适合合并
     apr_df = _pre_apr()
     hpr_df = _pre_hpr()
     store_df = _pre_store()
     dfs = _pre_train(store_df)
 
     print('\nmerge foreginer into common')
-    # merge foreginers into common
+    # 将其他数据集并入通用的输入数据集
     tr_dfs = _merge_foreginer(
         dfs, {
             'genre': ahdn_df,
@@ -240,13 +243,13 @@ if __name__ == '__main__':
     air_df, cover_df, hpg_df = tr_dfs
 
     print('\ndecorate dfs')
-    # decorate dfs
+    # 再对于合并后的数据集进行格式调整
     air_df = _dec_air(air_df)
     cover_df = _dec_cover(cover_df)
     hpg_df = _dec_hpg(hpg_df)
 
     print('\nfinal merge')
-    # final merge
+    # 合并所有数据集
     res_train_df = output_res_train(air_df, cover_df, hpg_df)
 
     print('\ncompleted')
