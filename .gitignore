@@ -11,3 +11,7 @@ data_merge.ipynb
 res_train.csv
 airres_train.csv
 train.ipynb
+air_store_info.csv
+air_visit_data.csv
+sample_submission.csv
+
