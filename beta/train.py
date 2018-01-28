@@ -46,10 +46,16 @@ def _pro_rtrain():
     rtrain_df['hpg_store_id'] = rtrain_df['hpg_store_id'].apply(
         lambda i: '0' if i == 0 else i)
 
+    # airrt_df = rtrain_df[rtrain_df['air_store_id'] != '0'].drop(
+    #     'hpg_store_id', axis=1)
+    # hpgrt_df = rtrain_df[rtrain_df['air_store_id'] == '0'].drop(
+    #     'air_store_id', axis=1)
+
     airrt_df = rtrain_df[rtrain_df['air_store_id'] != '0'].drop(
-        'hpg_store_id', axis=1)
+        ['hpg_store_id', 'big_area', 'genre', 'll_cluster'], axis=1)
     hpgrt_df = rtrain_df[rtrain_df['air_store_id'] == '0'].drop(
-        'air_store_id', axis=1)
+        ['air_store_id', 'big_area', 'genre', 'll_cluster'], axis=1)
+
 
     return airrt_df, hpgrt_df
 
@@ -58,11 +64,14 @@ def _pro_res(avd_df, airrt_df, hpgrt_df):
     restrain_df = pd.merge(
         airrt_df, avd_df, on=['air_store_id', 'visit_datetime'], how='inner')
     resvis_df = restrain_df['visitors']
-    restrain_df.drop(['air_store_id', 'visitors'], axis=1, inplace=True)
+    restrain_df.drop(
+        ['air_store_id', 'big_area', 'genre', 'll_cluster', 'visit_datetime'],
+        axis=1,
+        inplace=True)
 
     X = restrain_df.values
     y = resvis_df.values
-    test_X = hpgrt_df.drop(['hpg_store_id'], axis=1).values
+    # test_X = hpgrt_df.drop('hpg_store_id', axis=1).values
 
     return X, y, test_X
 

@@ -2,10 +2,6 @@ csv
 zip
 .vscode
 .ipynb_checkpoints
-<<<<<<< HEAD
-code
-__pycache__
-=======
 __pycache__
 ts_process.ipynb
 air_proc_res.csv
@@ -15,4 +11,3 @@ data_merge.ipynb
 res_train.csv
 airres_train.csv
 train.ipynb
->>>>>>> edd24f9c4c41f4eb2b60cada9eea81eeed01d23a

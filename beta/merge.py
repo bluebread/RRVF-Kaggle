@@ -199,11 +199,11 @@ def output_res_train(air_df, cover_df, hpg_df):
     res_train_df = pd.concat([air_df, cover_df, hpg_df])
 
     # decorate train
-    res_train_df = _get_dummies(res_train_df,
-                                ['genre', 'big_area', 'll_cluster'])
-    res_train_df['visit_datetime'] = res_train_df['visit_datetime'].apply(
-        lambda d: (d - datetime(2016, 1, 1).date()).days
-    )
+    # res_train_df = _get_dummies(res_train_df,
+    #                             ['genre', 'big_area', 'll_cluster'])
+    # res_train_df['visit_datetime'] = res_train_df['visit_datetime'].apply(
+    #     lambda d: (d - datetime(2016, 1, 1).date()).days
+    # )
 
     res_train_df.to_csv('res_train.csv', index=False)
 
